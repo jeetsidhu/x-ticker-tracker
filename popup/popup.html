@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Stock Ticker Tracker</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="popup">
+    <header>
+      <h1>📈 Ticker Tracker</h1>
+    </header>
+
+    <div class="stats">
+      <div class="stat-card main-stat">
+        <span class="stat-value" id="totalTweets">0</span>
+        <span class="stat-label">Saved Tweets</span>
+      </div>
+
+      <div class="stat-row">
+        <div class="stat-card">
+          <span class="stat-value" id="totalTickers">0</span>
+          <span class="stat-label">Unique Tickers</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="topTickersSection">
+      <h2>Top Tickers</h2>
+      <div class="tag-list" id="topTickers"></div>
+    </div>
+
+    <div class="section" id="recentSection">
+      <h2>Recent Saves</h2>
+      <div id="recentTweets"></div>
+    </div>
+
+    <div class="actions">
+      <button id="openDashboard" class="btn btn-primary">Open Dashboard</button>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

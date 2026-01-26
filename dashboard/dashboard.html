@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Stock Ticker Tracker - Dashboard</title>
+  <link rel="stylesheet" href="dashboard.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>📈 Stock Ticker Tracker</h1>
+      <p class="subtitle">Your saved tweets with stock tickers</p>
+    </header>
+
+    <div class="controls">
+      <div class="search-box">
+        <input type="text" id="searchInput" placeholder="Search tweets...">
+      </div>
+
+      <div class="filters">
+        <div class="filter-group">
+          <label for="tickerFilter">Filter by Ticker:</label>
+          <select id="tickerFilter">
+            <option value="">All Tickers</option>
+          </select>
+        </div>
+
+        <div class="filter-group">
+          <label for="authorFilter">Filter by Author:</label>
+          <select id="authorFilter">
+            <option value="">All Authors</option>
+          </select>
+        </div>
+
+        <div class="filter-group checkbox-filter">
+          <label class="checkbox-label">
+            <input type="checkbox" id="actionableFilter">
+            <span>Actionable Only</span>
+          </label>
+        </div>
+
+        <button id="exportBtn" class="btn btn-secondary">Export to Markdown</button>
+      </div>
+    </div>
+
+    <div class="stats-bar">
+      <span id="totalCount">0 tweets</span>
+      <span id="filteredCount"></span>
+    </div>
+
+    <div id="tweetList" class="tweet-list">
+      <div class="empty-state">
+        <p>No saved tweets yet.</p>
+        <p>Visit X.com and click the save button on tweets to get started!</p>
+      </div>
+    </div>
+  </div>
+
+  <script src="dashboard.js"></script>
+</body>
+</html>
