@@ -142,6 +142,13 @@ function downloadMarkdown(tweetData) {
   markdown += `## Tweet Content\n\n`;
   markdown += `> ${tweetData.text.split('\n').join('\n> ')}\n\n`;
 
+  if (tweetData.images && tweetData.images.length > 0) {
+    markdown += `## Images\n\n`;
+    tweetData.images.forEach((imgUrl, index) => {
+      markdown += `![Image ${index + 1}](${imgUrl})\n\n`;
+    });
+  }
+
   if (tweetData.comment) {
     markdown += `## Notes\n\n`;
     markdown += `${tweetData.comment}\n\n`;
@@ -563,6 +570,21 @@ function getTweetData(tweetElement) {
 
   const tickers = extractTickers(text);
 
+  // Extract image URLs from tweet
+  const images = [];
+  const mediaContainer = article.querySelector('[data-testid="tweetPhoto"]')?.closest('div[aria-labelledby]') || article;
+  const imgElements = mediaContainer.querySelectorAll('img[src*="pbs.twimg.com/media"]');
+  imgElements.forEach(img => {
+    let imgUrl = img.src;
+    // Get the highest quality version by modifying the URL
+    if (imgUrl.includes('?')) {
+      imgUrl = imgUrl.split('?')[0] + '?format=jpg&name=large';
+    }
+    if (!images.includes(imgUrl)) {
+      images.push(imgUrl);
+    }
+  });
+
   return {
     id,
     url,
@@ -570,6 +592,7 @@ function getTweetData(tweetElement) {
     author,
     authorDisplayName,
     tickers,
+    images,
     tweetedAt,
     savedAt: new Date().toISOString()
   };

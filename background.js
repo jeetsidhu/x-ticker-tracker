@@ -247,6 +247,11 @@ function exportToMarkdown(tweets) {
     }
     markdown += `**Saved:** ${new Date(tweet.savedAt).toLocaleString()}\n\n`;
     markdown += `> ${tweet.text.split('\n').join('\n> ')}\n\n`;
+    if (tweet.images && tweet.images.length > 0) {
+      tweet.images.forEach((imgUrl, index) => {
+        markdown += `![Image ${index + 1}](${imgUrl})\n\n`;
+      });
+    }
     if (tweet.comment) {
       markdown += `**Notes:** ${tweet.comment}\n\n`;
     }
