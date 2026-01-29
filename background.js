@@ -282,10 +282,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
       case 'DOWNLOAD_MARKDOWN':
         try {
-          const blob = new Blob([message.markdown], { type: 'text/markdown' });
-          const url = URL.createObjectURL(blob);
+          // Use data URL instead of blob URL (blob URLs don't work in service workers)
+          const dataUrl = 'data:text/markdown;base64,' + btoa(unescape(encodeURIComponent(message.markdown)));
           await chrome.downloads.download({
-            url: url,
+            url: dataUrl,
             filename: message.filename,
             saveAs: false
           });
