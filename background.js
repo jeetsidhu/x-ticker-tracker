@@ -1,155 +1,8 @@
-// X Stock Ticker Tracker - Background Service Worker
-// Handles storage operations for saved tweets and stock data fetching
+// X Tweet Tracker - Background Service Worker
+// Handles storage operations for saved tweets
 
 const STORAGE_KEY = 'savedTweets';
-const STOCK_CACHE_KEY = 'stockCache';
-const CACHE_DURATION = 15 * 60 * 1000; // 15 minutes
-
-// Fetch performance data for a specific time range
-async function fetchPerformanceForRange(symbol, range, interval) {
-  try {
-    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?range=${range}&interval=${interval}`;
-    const response = await fetch(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0',
-        'Accept': 'application/json'
-      }
-    });
-
-    if (!response.ok) return null;
-
-    const data = await response.json();
-    const result = data.chart?.result?.[0];
-    if (!result) return null;
-
-    const quotes = result.indicators?.quote?.[0];
-    const closes = quotes?.close;
-    if (!closes || closes.length === 0) return null;
-
-    // Get first valid close and last valid close
-    let startPrice = null;
-    for (let i = 0; i < closes.length; i++) {
-      if (closes[i] !== null) {
-        startPrice = closes[i];
-        break;
-      }
-    }
-
-    let endPrice = null;
-    for (let i = closes.length - 1; i >= 0; i--) {
-      if (closes[i] !== null) {
-        endPrice = closes[i];
-        break;
-      }
-    }
-
-    if (startPrice === null || endPrice === null || startPrice === 0) return null;
-
-    return ((endPrice - startPrice) / startPrice) * 100;
-  } catch (error) {
-    console.log(`Could not fetch ${range} performance:`, error);
-    return null;
-  }
-}
-
-// Fetch stock info from Yahoo Finance with multi-period performance
-async function fetchStockInfo(symbol) {
-  // Check cache first
-  const cache = await getStockCache();
-  const cached = cache[symbol];
-  if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
-    return cached.data;
-  }
-
-  try {
-    // Fetch basic quote data
-    const quoteUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=1d`;
-    const quoteResponse = await fetch(quoteUrl, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0',
-        'Accept': 'application/json'
-      }
-    });
-
-    let stockInfo = {
-      symbol: symbol,
-      name: symbol,
-      currentPrice: null,
-      priceFormatted: 'N/A',
-      currency: 'USD',
-      performance: {
-        '1D': null,
-        '1M': null,
-        'YTD': null,
-        '1Y': null,
-        '5Y': null
-      }
-    };
-
-    if (quoteResponse.ok) {
-      const quoteData = await quoteResponse.json();
-      const meta = quoteData.chart?.result?.[0]?.meta;
-
-      if (meta) {
-        stockInfo.name = meta.shortName || meta.longName || symbol;
-        stockInfo.currentPrice = meta.regularMarketPrice;
-        stockInfo.priceFormatted = meta.regularMarketPrice?.toFixed(2) || 'N/A';
-        stockInfo.currency = meta.currency || 'USD';
-
-        // Calculate 1D performance from previous close
-        if (meta.regularMarketPrice && meta.previousClose && meta.previousClose !== 0) {
-          stockInfo.performance['1D'] = ((meta.regularMarketPrice - meta.previousClose) / meta.previousClose) * 100;
-        }
-      }
-    }
-
-    // Fetch multi-period performance data in parallel
-    const [perf1M, perfYTD, perf1Y, perf5Y] = await Promise.all([
-      fetchPerformanceForRange(symbol, '1mo', '1d'),
-      fetchPerformanceForRange(symbol, 'ytd', '1d'),
-      fetchPerformanceForRange(symbol, '1y', '1d'),
-      fetchPerformanceForRange(symbol, '5y', '1wk')
-    ]);
-
-    stockInfo.performance['1M'] = perf1M;
-    stockInfo.performance['YTD'] = perfYTD;
-    stockInfo.performance['1Y'] = perf1Y;
-    stockInfo.performance['5Y'] = perf5Y;
-
-    // If we got at least a price, consider it a success
-    if (stockInfo.currentPrice !== null) {
-      // Cache the result
-      cache[symbol] = { data: stockInfo, timestamp: Date.now() };
-      await saveStockCache(cache);
-      return stockInfo;
-    }
-
-    throw new Error('No data found for symbol');
-  } catch (error) {
-    console.error('Error fetching stock info:', error);
-    return {
-      symbol: symbol,
-      name: symbol,
-      error: true
-    };
-  }
-}
-
-// Stock cache helpers
-async function getStockCache() {
-  const result = await chrome.storage.local.get(STOCK_CACHE_KEY);
-  return result[STOCK_CACHE_KEY] || {};
-}
-
-async function saveStockCache(cache) {
-  // Limit cache size - keep only most recent 50 stocks
-  const entries = Object.entries(cache);
-  if (entries.length > 50) {
-    entries.sort((a, b) => b[1].timestamp - a[1].timestamp);
-    cache = Object.fromEntries(entries.slice(0, 50));
-  }
-  await chrome.storage.local.set({ [STOCK_CACHE_KEY]: cache });
-}
+const AUTHOR_TAGS_KEY = 'authorTags';
 
 // Get all saved tweets
 async function getSavedTweets() {
@@ -182,15 +35,134 @@ async function addTweet(tweetData) {
   }
 
   await saveTweets(tweets);
+
+  // Update author tweet count
+  if (tweetData.author) {
+    await updateAuthorTweetCount(tweetData.author);
+  }
+
   return { success: true };
 }
 
 // Delete a tweet by ID
 async function deleteTweet(tweetId) {
   const tweets = await getSavedTweets();
+  const tweetToDelete = tweets.find(t => t.id === tweetId);
   const filtered = tweets.filter(t => t.id !== tweetId);
   await saveTweets(filtered);
+
+  // Update author tweet count after deletion
+  if (tweetToDelete && tweetToDelete.author) {
+    await updateAuthorTweetCount(tweetToDelete.author);
+  }
+
   return { success: true };
+}
+
+// Author Tags Functions
+
+// Get all author tags
+async function getAuthorTags() {
+  const result = await chrome.storage.local.get(AUTHOR_TAGS_KEY);
+  return result[AUTHOR_TAGS_KEY] || {};
+}
+
+// Get single author's tags
+async function getAuthorTag(handle) {
+  const tags = await getAuthorTags();
+  return tags[handle] || null;
+}
+
+// Save/update author tags
+async function saveAuthorTag(data) {
+  const tags = await getAuthorTags();
+  const existing = tags[data.handle] || {};
+
+  tags[data.handle] = {
+    handle: data.handle,
+    displayName: data.displayName || existing.displayName || data.handle,
+    tags: data.tags || existing.tags || [],
+    notes: data.notes !== undefined ? data.notes : (existing.notes || ''),
+    tweetCount: existing.tweetCount || 0,
+    createdAt: existing.createdAt || new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  };
+
+  await chrome.storage.local.set({ [AUTHOR_TAGS_KEY]: tags });
+  return { success: true, author: tags[data.handle] };
+}
+
+// Delete author tags
+async function deleteAuthorTag(handle) {
+  const tags = await getAuthorTags();
+  delete tags[handle];
+  await chrome.storage.local.set({ [AUTHOR_TAGS_KEY]: tags });
+  return { success: true };
+}
+
+// Get tweets by specific author
+async function getTweetsByAuthor(handle) {
+  const tweets = await getSavedTweets();
+  return tweets.filter(t => t.author === handle);
+}
+
+// Update author tweet count
+async function updateAuthorTweetCount(handle) {
+  if (!handle) return;
+
+  const tweets = await getTweetsByAuthor(handle);
+  const tags = await getAuthorTags();
+
+  if (tags[handle]) {
+    tags[handle].tweetCount = tweets.length;
+    tags[handle].updatedAt = new Date().toISOString();
+    await chrome.storage.local.set({ [AUTHOR_TAGS_KEY]: tags });
+  } else if (tweets.length > 0) {
+    // Auto-create author entry when saving first tweet
+    const firstTweet = tweets[0];
+    tags[handle] = {
+      handle: handle,
+      displayName: firstTweet.authorDisplayName || handle,
+      tags: [],
+      notes: '',
+      tweetCount: tweets.length,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    await chrome.storage.local.set({ [AUTHOR_TAGS_KEY]: tags });
+  }
+}
+
+// Export author tags to JSON
+function exportAuthorTagsToJson(authorTags) {
+  return JSON.stringify({
+    exportedAt: new Date().toISOString(),
+    version: 1,
+    authorTags: authorTags
+  }, null, 2);
+}
+
+// Import author tags from JSON
+async function importAuthorTags(jsonData, merge = true) {
+  try {
+    const imported = JSON.parse(jsonData);
+    if (!imported.authorTags) {
+      return { success: false, error: 'Invalid format: missing authorTags' };
+    }
+
+    if (merge) {
+      const existing = await getAuthorTags();
+      // Merge: imported data takes precedence for conflicts
+      const merged = { ...existing, ...imported.authorTags };
+      await chrome.storage.local.set({ [AUTHOR_TAGS_KEY]: merged });
+      return { success: true, count: Object.keys(imported.authorTags).length, merged: true };
+    } else {
+      await chrome.storage.local.set({ [AUTHOR_TAGS_KEY]: imported.authorTags });
+      return { success: true, count: Object.keys(imported.authorTags).length, merged: false };
+    }
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
 }
 
 // Get stats for popup
@@ -230,7 +202,7 @@ async function getStats() {
 
 // Export tweets to markdown
 function exportToMarkdown(tweets) {
-  let markdown = '# Saved Stock Ticker Tweets\n\n';
+  let markdown = '# Saved Tweets\n\n';
   markdown += `Exported on ${new Date().toLocaleString()}\n\n`;
   markdown += `Total tweets: ${tweets.length}\n`;
   markdown += `Actionable trades: ${tweets.filter(t => t.actionable).length}\n\n---\n\n`;
@@ -282,15 +254,49 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         const tweets = await getSavedTweets();
         return { markdown: exportToMarkdown(tweets) };
 
-      case 'GET_STOCK_INFO':
-        return await fetchStockInfo(message.symbol);
-
       case 'DOWNLOAD_MARKDOWN':
         try {
           // Use data URL instead of blob URL (blob URLs don't work in service workers)
           const dataUrl = 'data:text/markdown;base64,' + btoa(unescape(encodeURIComponent(message.markdown)));
           await chrome.downloads.download({
             url: dataUrl,
+            filename: message.filename,
+            saveAs: false
+          });
+          return { success: true };
+        } catch (error) {
+          console.error('Download error:', error);
+          return { success: false, error: error.message };
+        }
+
+      // Author tag handlers
+      case 'GET_AUTHOR_TAGS':
+        return { authorTags: await getAuthorTags() };
+
+      case 'GET_AUTHOR_TAG':
+        return { author: await getAuthorTag(message.handle) };
+
+      case 'SAVE_AUTHOR_TAG':
+        return await saveAuthorTag(message.data);
+
+      case 'DELETE_AUTHOR_TAG':
+        return await deleteAuthorTag(message.handle);
+
+      case 'GET_TWEETS_BY_AUTHOR':
+        return { tweets: await getTweetsByAuthor(message.handle) };
+
+      case 'EXPORT_AUTHOR_TAGS':
+        const authorTags = await getAuthorTags();
+        return { json: exportAuthorTagsToJson(authorTags) };
+
+      case 'IMPORT_AUTHOR_TAGS':
+        return await importAuthorTags(message.json, message.merge !== false);
+
+      case 'DOWNLOAD_AUTHOR_TAGS':
+        try {
+          const jsonDataUrl = 'data:application/json;base64,' + btoa(unescape(encodeURIComponent(message.json)));
+          await chrome.downloads.download({
+            url: jsonDataUrl,
             filename: message.filename,
             saveAs: false
           });
@@ -314,4 +320,4 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   return true; // Keep message channel open for async response
 });
 
-console.log('X Stock Ticker Tracker background service worker initialized');
+console.log('X Tweet Tracker background service worker initialized');

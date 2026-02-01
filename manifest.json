@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "X Stock Ticker Tracker",
+  "name": "X Tweet Tracker",
   "version": "1.0.0",
-  "description": "Track and save tweets containing stock tickers from X (Twitter)",
+  "description": "Save and organize tweets from X (Twitter) with notes, tags, and author tracking",
   "permissions": [
     "storage",
     "activeTab",
@@ -10,10 +10,7 @@
   ],
   "host_permissions": [
     "*://x.com/*",
-    "*://twitter.com/*",
-    "*://query1.finance.yahoo.com/*",
-    "*://query2.finance.yahoo.com/*",
-    "*://charts2.finviz.com/*"
+    "*://twitter.com/*"
   ],
   "background": {
     "service_worker": "background.js"

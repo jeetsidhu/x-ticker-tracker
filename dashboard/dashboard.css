@@ -21,9 +21,56 @@ body {
 
 header {
   text-align: center;
-  margin-bottom: 30px;
+  margin-bottom: 20px;
   padding-bottom: 20px;
   border-bottom: 1px solid #2f3336;
+}
+
+/* Tab Navigation */
+.tab-nav {
+  display: flex;
+  gap: 0;
+  margin-bottom: 20px;
+  border-bottom: 1px solid #2f3336;
+}
+
+.tab-btn {
+  padding: 12px 24px;
+  background: none;
+  border: none;
+  font-size: 15px;
+  font-weight: 600;
+  color: #71767b;
+  cursor: pointer;
+  position: relative;
+  transition: color 0.2s ease;
+}
+
+.tab-btn:hover {
+  color: #e7e9ea;
+}
+
+.tab-btn.active {
+  color: #e7e9ea;
+}
+
+.tab-btn.active::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background-color: #1d9bf0;
+  border-radius: 3px 3px 0 0;
+}
+
+.tab-content {
+  display: none;
+}
+
+.tab-content.active {
+  display: block;
 }
 
 header h1 {
@@ -312,6 +359,252 @@ header h1 {
   font-size: 12px;
 }
 
+/* Author Actions */
+.author-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.import-btn {
+  cursor: pointer;
+}
+
+/* Author List */
+.author-list {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+/* Author Card */
+.author-card {
+  background-color: #16181c;
+  border: 1px solid #2f3336;
+  border-radius: 12px;
+  padding: 16px;
+  transition: border-color 0.2s ease;
+}
+
+.author-card:hover {
+  border-color: #3d4144;
+}
+
+.author-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 10px;
+}
+
+.author-card-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.author-card-name {
+  font-weight: 700;
+  font-size: 15px;
+  color: #e7e9ea;
+}
+
+.author-card-handle {
+  color: #71767b;
+  font-size: 14px;
+}
+
+.author-card-stats {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.author-tweet-badge {
+  background-color: rgba(29, 155, 240, 0.15);
+  color: #1d9bf0;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.author-card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.author-tag {
+  background-color: rgba(0, 186, 124, 0.2);
+  color: #00ba7c;
+  padding: 3px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.author-card-notes {
+  background-color: #0f1419;
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  font-size: 14px;
+  color: #a0a4a8;
+  border-left: 3px solid #1d9bf0;
+}
+
+.author-card-footer {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.author-card-date {
+  color: #536471;
+  font-size: 12px;
+}
+
+/* Edit Author Modal */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.7);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.2s ease, visibility 0.2s ease;
+}
+
+.modal-overlay.visible {
+  opacity: 1;
+  visibility: visible;
+}
+
+.edit-author-modal {
+  background-color: #16181c;
+  border: 1px solid #2f3336;
+  border-radius: 16px;
+  width: 90%;
+  max-width: 480px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.5);
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px;
+  border-bottom: 1px solid #2f3336;
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: #e7e9ea;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 24px;
+  color: #71767b;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 50%;
+  transition: background-color 0.15s ease;
+}
+
+.modal-close:hover {
+  background-color: rgba(239, 243, 244, 0.1);
+  color: #e7e9ea;
+}
+
+.modal-body {
+  padding: 16px;
+}
+
+.author-info-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #2f3336;
+}
+
+.author-info-header .author-handle {
+  font-size: 16px;
+  font-weight: 600;
+  color: #e7e9ea;
+}
+
+.author-info-header .author-tweet-count {
+  font-size: 13px;
+  color: #71767b;
+}
+
+.form-group {
+  margin-bottom: 16px;
+}
+
+.form-group label {
+  display: block;
+  font-size: 14px;
+  color: #71767b;
+  margin-bottom: 6px;
+}
+
+.form-group input,
+.form-group textarea {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #2f3336;
+  border-radius: 8px;
+  background-color: #0f1419;
+  color: #e7e9ea;
+  font-size: 15px;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+
+.form-group input:focus,
+.form-group textarea:focus {
+  outline: none;
+  border-color: #1d9bf0;
+}
+
+.form-group input::placeholder,
+.form-group textarea::placeholder {
+  color: #536471;
+}
+
+.form-group textarea {
+  min-height: 100px;
+  resize: vertical;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px;
+  border-top: 1px solid #2f3336;
+}
+
+.modal-footer-right {
+  display: flex;
+  gap: 10px;
+}
+
 @media (max-width: 600px) {
   .filters {
     flex-direction: column;
@@ -333,5 +626,36 @@ header h1 {
 
   .tweet-actions .btn {
     flex: 1;
+  }
+
+  .author-card-header {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .author-card-stats {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .author-actions {
+    flex-direction: column;
+  }
+
+  .modal-footer {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .modal-footer-right {
+    width: 100%;
+  }
+
+  .modal-footer-right .btn {
+    flex: 1;
+  }
+
+  #deleteAuthorBtn {
+    width: 100%;
   }
 }

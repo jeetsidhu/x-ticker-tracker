@@ -1,14 +1,8 @@
-// X Stock Ticker Tracker - Content Script
-// Injects save buttons into tweets and detects stock tickers
+// X Tweet Tracker - Content Script
+// Injects save buttons into tweets for documentation
 
 const TICKER_REGEX = /\$([A-Z]{1,5})\b/g;
 const PROCESSED_ATTR = 'data-ticker-tracker-processed';
-const TICKER_PROCESSED_ATTR = 'data-ticker-hover-processed';
-
-// Tooltip state
-let activeTooltip = null;
-let tooltipTimeout = null;
-let hideTimeout = null;
 
 // Modal state
 let saveModal = null;
@@ -35,6 +29,42 @@ function createSaveModal() {
         <div class="ticker-modal-author"></div>
         <div class="ticker-modal-text"></div>
         <div class="ticker-modal-tickers"></div>
+      </div>
+      <div class="ticker-modal-author-section">
+        <div class="ticker-author-section-header">
+          <span class="ticker-author-section-title">Author Info</span>
+          <button class="ticker-author-toggle" type="button">
+            <svg class="toggle-icon" viewBox="0 0 24 24" width="16" height="16">
+              <path fill="currentColor" d="M7 10l5 5 5-5z"/>
+            </svg>
+          </button>
+        </div>
+        <div class="ticker-author-section-content">
+          <div class="ticker-author-tags-group">
+            <div class="ticker-author-existing-tags">
+              <span class="ticker-author-label">Current Tags:</span>
+              <div class="ticker-author-tags-display"></div>
+            </div>
+            <div class="ticker-author-input-group">
+              <label for="ticker-author-tags">Tags (comma-separated)</label>
+              <input type="text" id="ticker-author-tags" placeholder="e.g., biotech, small caps, options">
+            </div>
+          </div>
+          <div class="ticker-author-notes-group">
+            <div class="ticker-author-existing-notes">
+              <span class="ticker-author-label">Current Notes:</span>
+              <div class="ticker-author-notes-display"></div>
+            </div>
+            <div class="ticker-author-input-group">
+              <label for="ticker-author-notes">Notes about this author</label>
+              <textarea id="ticker-author-notes" placeholder="e.g., Known for accurate biotech predictions"></textarea>
+            </div>
+          </div>
+          <div class="ticker-author-previous-tweets">
+            <span class="ticker-author-label">Previous Tweets (<span class="prev-tweet-count">0</span>):</span>
+            <div class="ticker-author-tweets-list"></div>
+          </div>
+        </div>
       </div>
       <div class="ticker-modal-form">
         <label class="ticker-modal-checkbox-label">
@@ -66,6 +96,12 @@ function createSaveModal() {
   // Save button handler
   modal.querySelector('.ticker-modal-save').addEventListener('click', handleModalSave);
 
+  // Author section toggle
+  modal.querySelector('.ticker-author-toggle').addEventListener('click', () => {
+    const section = modal.querySelector('.ticker-modal-author-section');
+    section.classList.toggle('collapsed');
+  });
+
   // Escape key to close
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && saveModal?.classList.contains('visible')) {
@@ -86,7 +122,7 @@ function getSaveModal() {
 }
 
 // Show save modal
-function showSaveModal(tweetData, button) {
+async function showSaveModal(tweetData, button) {
   currentTweetData = { ...tweetData, saveButton: button };
 
   const modal = getSaveModal();
@@ -104,9 +140,84 @@ function showSaveModal(tweetData, button) {
   modal.querySelector('#ticker-actionable-checkbox').checked = false;
   modal.querySelector('#ticker-comment').value = '';
 
+  // Reset author section
+  modal.querySelector('.ticker-author-tags-display').innerHTML = '<span class="no-data">No tags yet</span>';
+  modal.querySelector('.ticker-author-notes-display').innerHTML = '<span class="no-data">No notes yet</span>';
+  modal.querySelector('.ticker-author-tweets-list').innerHTML = '';
+  modal.querySelector('.prev-tweet-count').textContent = '0';
+  modal.querySelector('#ticker-author-tags').value = '';
+  modal.querySelector('#ticker-author-notes').value = '';
+
+  // Fetch author data and previous tweets
+  if (tweetData.author) {
+    try {
+      const [authorResponse, tweetsResponse] = await Promise.all([
+        chrome.runtime.sendMessage({ type: 'GET_AUTHOR_TAG', handle: tweetData.author }),
+        chrome.runtime.sendMessage({ type: 'GET_TWEETS_BY_AUTHOR', handle: tweetData.author })
+      ]);
+
+      // Populate existing author tags
+      if (authorResponse?.author) {
+        const author = authorResponse.author;
+
+        if (author.tags && author.tags.length > 0) {
+          modal.querySelector('.ticker-author-tags-display').innerHTML =
+            author.tags.map(t => `<span class="author-tag-badge">${escapeHtml(t)}</span>`).join('');
+          modal.querySelector('#ticker-author-tags').value = author.tags.join(', ');
+        }
+
+        if (author.notes) {
+          modal.querySelector('.ticker-author-notes-display').innerHTML = escapeHtml(author.notes);
+          modal.querySelector('#ticker-author-notes').value = author.notes;
+        }
+      }
+
+      // Populate previous tweets
+      if (tweetsResponse?.tweets && tweetsResponse.tweets.length > 0) {
+        const prevTweets = tweetsResponse.tweets.slice(0, 5);
+        modal.querySelector('.prev-tweet-count').textContent = tweetsResponse.tweets.length;
+        modal.querySelector('.ticker-author-tweets-list').innerHTML = prevTweets.map(t => `
+          <div class="prev-tweet-item">
+            <div class="prev-tweet-text">${escapeHtml(t.text.substring(0, 100))}${t.text.length > 100 ? '...' : ''}</div>
+            <div class="prev-tweet-meta">
+              ${t.tickers.length > 0 ? t.tickers.map(ticker => `<span class="prev-tweet-ticker">$${ticker}</span>`).join('') : ''}
+              <span class="prev-tweet-date">${formatRelativeDate(t.savedAt)}</span>
+            </div>
+          </div>
+        `).join('');
+      }
+    } catch (error) {
+      console.error('Error fetching author data:', error);
+    }
+  }
+
   // Show modal
   modal.classList.add('visible');
   modal.querySelector('#ticker-comment').focus();
+}
+
+// Escape HTML for display
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+// Format relative date
+function formatRelativeDate(isoString) {
+  const date = new Date(isoString);
+  const now = new Date();
+  const diffMs = now - date;
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+
+  if (diffMins < 1) return 'just now';
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays < 7) return `${diffDays}d ago`;
+
+  return date.toLocaleDateString();
 }
 
 // Close save modal
@@ -155,13 +266,13 @@ function downloadMarkdown(tweetData) {
   }
 
   markdown += `---\n`;
-  markdown += `*Saved with X Stock Ticker Tracker*\n`;
+  markdown += `*Saved with X Tweet Tracker*\n`;
 
   // Generate filename with subfolder
   const dateStr = now.toISOString().split('T')[0];
   const timeStr = now.toTimeString().split(' ')[0].replace(/:/g, '-');
   const tickerStr = tweetData.tickers.length > 0 ? `_${tweetData.tickers.slice(0, 3).join('-')}` : '';
-  const filename = `ticker-tracker-tweets/tweet_${tweetData.author}${tickerStr}_${dateStr}_${timeStr}.md`;
+  const filename = `tweet-tracker-tweets/tweet_${tweetData.author}${tickerStr}_${dateStr}_${timeStr}.md`;
 
   // Send to background script for download
   chrome.runtime.sendMessage({
@@ -180,6 +291,13 @@ async function handleModalSave() {
   const comment = modal.querySelector('#ticker-comment').value.trim();
   const button = currentTweetData.saveButton;
 
+  // Get author tags/notes
+  const authorTagsInput = modal.querySelector('#ticker-author-tags').value.trim();
+  const authorNotes = modal.querySelector('#ticker-author-notes').value.trim();
+  const authorTags = authorTagsInput
+    ? authorTagsInput.split(',').map(t => t.trim()).filter(t => t)
+    : [];
+
   // Add form data to tweet data
   const tweetDataWithComments = {
     ...currentTweetData,
@@ -196,6 +314,19 @@ async function handleModalSave() {
   }
 
   try {
+    // Save author tags if any were entered
+    if (currentTweetData.author && (authorTags.length > 0 || authorNotes)) {
+      await chrome.runtime.sendMessage({
+        type: 'SAVE_AUTHOR_TAG',
+        data: {
+          handle: currentTweetData.author,
+          displayName: currentTweetData.authorDisplayName,
+          tags: authorTags,
+          notes: authorNotes
+        }
+      });
+    }
+
     const response = await chrome.runtime.sendMessage({
       type: 'SAVE_TWEET',
       data: tweetDataWithComments
@@ -235,233 +366,8 @@ async function handleModalSave() {
       button.classList.remove('saving');
     }
     showNotification('Error saving tweet', 'error');
-    console.error('Ticker Tracker:', error);
+    console.error('Tweet Tracker:', error);
   }
-}
-
-// Create ticker tooltip
-function createTooltip() {
-  const tooltip = document.createElement('div');
-  tooltip.className = 'ticker-tracker-tooltip';
-  tooltip.innerHTML = `
-    <div class="ticker-tooltip-header">
-      <span class="ticker-tooltip-symbol"></span>
-      <span class="ticker-tooltip-name"></span>
-    </div>
-    <div class="ticker-tooltip-price">
-      Share price: <span class="ticker-tooltip-current"></span>
-    </div>
-    <div class="ticker-tooltip-performance">
-      <span class="perf-item">1D: <span class="perf-1d"></span></span>
-      <span class="perf-item">1M: <span class="perf-1m"></span></span>
-      <span class="perf-item">YTD: <span class="perf-ytd"></span></span>
-      <span class="perf-item">1Y: <span class="perf-1y"></span></span>
-      <span class="perf-item">5Y: <span class="perf-5y"></span></span>
-    </div>
-    <div class="ticker-tooltip-links">
-      <a class="ticker-tooltip-link" target="_blank">View on Yahoo Finance</a>
-    </div>
-    <div class="ticker-tooltip-loading">Loading...</div>
-  `;
-  document.body.appendChild(tooltip);
-  return tooltip;
-}
-
-// Get or create tooltip
-function getTooltip() {
-  let tooltip = document.querySelector('.ticker-tracker-tooltip');
-  if (!tooltip) {
-    tooltip = createTooltip();
-  }
-  return tooltip;
-}
-
-// Position tooltip near element
-function positionTooltip(tooltip, element) {
-  const rect = element.getBoundingClientRect();
-
-  let left = rect.left + window.scrollX;
-  let top = rect.bottom + window.scrollY + 8;
-
-  // Adjust if tooltip goes off right edge (320px width)
-  if (left + 320 > window.innerWidth) {
-    left = window.innerWidth - 330;
-  }
-
-  // Adjust if tooltip goes off bottom
-  if (rect.bottom + 200 > window.innerHeight) {
-    top = rect.top + window.scrollY - 208;
-  }
-
-  tooltip.style.left = `${Math.max(10, left)}px`;
-  tooltip.style.top = `${top}px`;
-}
-
-// Format performance value with color class
-function formatPerformance(value) {
-  if (value === null || value === undefined || isNaN(value)) {
-    return { text: 'N/A', className: '' };
-  }
-  const isPositive = value >= 0;
-  const text = `${isPositive ? '+' : ''}${value.toFixed(1)}%`;
-  const className = isPositive ? 'positive' : 'negative';
-  return { text, className };
-}
-
-// Show tooltip for a ticker
-async function showTickerTooltip(element, symbol) {
-  clearTimeout(hideTimeout);
-
-  const tooltip = getTooltip();
-  tooltip.classList.add('loading');
-  tooltip.classList.add('visible');
-
-  positionTooltip(tooltip, element);
-
-  // Fetch stock info
-  let stockInfo;
-  try {
-    stockInfo = await chrome.runtime.sendMessage({
-      type: 'GET_STOCK_INFO',
-      symbol: symbol
-    });
-  } catch (error) {
-    console.error('Error fetching stock info:', error);
-    stockInfo = { error: true };
-  }
-
-  tooltip.classList.remove('loading');
-
-  if (!stockInfo || stockInfo.error) {
-    tooltip.querySelector('.ticker-tooltip-symbol').textContent = `$${symbol}`;
-    tooltip.querySelector('.ticker-tooltip-name').textContent = '';
-    tooltip.querySelector('.ticker-tooltip-price').style.display = 'none';
-    tooltip.querySelector('.ticker-tooltip-performance').style.display = 'none';
-    tooltip.querySelector('.ticker-tooltip-link').href = `https://finance.yahoo.com/quote/${symbol}`;
-    return;
-  }
-
-  // Populate tooltip
-  tooltip.querySelector('.ticker-tooltip-symbol').textContent = `$${stockInfo.symbol}`;
-  tooltip.querySelector('.ticker-tooltip-name').textContent = stockInfo.name;
-  tooltip.querySelector('.ticker-tooltip-current').textContent = `$${stockInfo.priceFormatted}`;
-
-  // Populate performance values
-  const performance = stockInfo.performance || {};
-  const perfPeriods = [
-    { key: '1D', selector: '.perf-1d' },
-    { key: '1M', selector: '.perf-1m' },
-    { key: 'YTD', selector: '.perf-ytd' },
-    { key: '1Y', selector: '.perf-1y' },
-    { key: '5Y', selector: '.perf-5y' }
-  ];
-
-  perfPeriods.forEach(({ key, selector }) => {
-    const el = tooltip.querySelector(selector);
-    const { text, className } = formatPerformance(performance[key]);
-    el.textContent = text;
-    el.className = selector.slice(1) + (className ? ' ' + className : '');
-  });
-
-  tooltip.querySelector('.ticker-tooltip-price').style.display = 'block';
-  tooltip.querySelector('.ticker-tooltip-performance').style.display = 'flex';
-  tooltip.querySelector('.ticker-tooltip-link').href = `https://finance.yahoo.com/quote/${symbol}`;
-
-  // Reposition after content loads
-  setTimeout(() => positionTooltip(tooltip, element), 50);
-}
-
-// Hide tooltip
-function hideTooltip() {
-  hideTimeout = setTimeout(() => {
-    const tooltip = document.querySelector('.ticker-tracker-tooltip');
-    if (tooltip) {
-      tooltip.classList.remove('visible');
-    }
-  }, 200);
-}
-
-// Wrap tickers in tweet text with hoverable spans
-function wrapTickersInTweet(tweetElement) {
-  const tweetText = tweetElement.querySelector('[data-testid="tweetText"]');
-  if (!tweetText || tweetText.hasAttribute(TICKER_PROCESSED_ATTR)) return;
-
-  tweetText.setAttribute(TICKER_PROCESSED_ATTR, 'true');
-
-  // Find text nodes and wrap tickers
-  const walker = document.createTreeWalker(
-    tweetText,
-    NodeFilter.SHOW_TEXT,
-    null,
-    false
-  );
-
-  const textNodes = [];
-  while (walker.nextNode()) {
-    textNodes.push(walker.currentNode);
-  }
-
-  textNodes.forEach(node => {
-    const text = node.textContent;
-    if (!TICKER_REGEX.test(text)) return;
-
-    TICKER_REGEX.lastIndex = 0; // Reset regex state
-
-    const fragment = document.createDocumentFragment();
-    let lastIndex = 0;
-    let match;
-
-    while ((match = TICKER_REGEX.exec(text)) !== null) {
-      // Add text before match
-      if (match.index > lastIndex) {
-        fragment.appendChild(document.createTextNode(text.slice(lastIndex, match.index)));
-      }
-
-      // Create ticker span
-      const span = document.createElement('span');
-      span.className = 'ticker-tracker-ticker';
-      span.textContent = match[0];
-      span.dataset.symbol = match[1];
-
-      // Add hover handlers
-      span.addEventListener('mouseenter', (e) => {
-        clearTimeout(tooltipTimeout);
-        tooltipTimeout = setTimeout(() => {
-          showTickerTooltip(span, span.dataset.symbol);
-        }, 300);
-      });
-
-      span.addEventListener('mouseleave', () => {
-        clearTimeout(tooltipTimeout);
-        hideTooltip();
-      });
-
-      fragment.appendChild(span);
-      lastIndex = match.index + match[0].length;
-    }
-
-    // Add remaining text
-    if (lastIndex < text.length) {
-      fragment.appendChild(document.createTextNode(text.slice(lastIndex)));
-    }
-
-    node.parentNode.replaceChild(fragment, node);
-  });
-}
-
-// Set up tooltip hover handlers
-function setupTooltipHover() {
-  document.addEventListener('mouseover', (e) => {
-    if (e.target.closest('.ticker-tracker-tooltip')) {
-      clearTimeout(hideTimeout);
-    }
-  });
-
-  document.addEventListener('mouseout', (e) => {
-    if (e.target.closest('.ticker-tracker-tooltip')) {
-      hideTooltip();
-    }
-  });
 }
 
 // Get tweet data from a tweet element
@@ -607,7 +513,7 @@ function createSaveButton(tweetElement) {
       <path fill="currentColor" d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z"/>
     </svg>
   `;
-  button.title = 'Save to Ticker Tracker';
+  button.title = 'Save to Tweet Tracker';
 
   button.addEventListener('click', (e) => {
     e.preventDefault();
@@ -645,9 +551,6 @@ function showNotification(message, type = 'info') {
 
 // Process a single tweet
 function processTweet(tweetElement) {
-  // Wrap tickers for hover (always try this)
-  wrapTickersInTweet(tweetElement);
-
   if (tweetElement.hasAttribute(PROCESSED_ATTR)) return;
 
   const actionBar = tweetElement.querySelector('[role="group"]');
@@ -686,8 +589,8 @@ function setupObserver() {
 
     if (shouldProcess) {
       // Debounce processing
-      clearTimeout(window.tickerTrackerTimeout);
-      window.tickerTrackerTimeout = setTimeout(processAllTweets, 100);
+      clearTimeout(window.tweetTrackerTimeout);
+      window.tweetTrackerTimeout = setTimeout(processAllTweets, 100);
     }
   });
 
@@ -701,8 +604,7 @@ function setupObserver() {
 function init() {
   processAllTweets();
   setupObserver();
-  setupTooltipHover();
-  console.log('X Stock Ticker Tracker initialized');
+  console.log('X Tweet Tracker initialized');
 }
 
 // Wait for page to be ready

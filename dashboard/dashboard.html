@@ -3,16 +3,22 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Stock Ticker Tracker - Dashboard</title>
+  <title>Tweet Tracker - Dashboard</title>
   <link rel="stylesheet" href="dashboard.css">
 </head>
 <body>
   <div class="container">
     <header>
-      <h1>📈 Stock Ticker Tracker</h1>
-      <p class="subtitle">Your saved tweets with stock tickers</p>
+      <h1>📝 Tweet Tracker</h1>
+      <p class="subtitle">Your saved tweets and author notes</p>
     </header>
 
+    <nav class="tab-nav">
+      <button class="tab-btn active" data-tab="tweets">Saved Tweets</button>
+      <button class="tab-btn" data-tab="authors">Author Tags</button>
+    </nav>
+
+    <div class="tab-content active" id="tweets-tab">
     <div class="controls">
       <div class="search-box">
         <input type="text" id="searchInput" placeholder="Search tweets...">
@@ -53,6 +59,65 @@
       <div class="empty-state">
         <p>No saved tweets yet.</p>
         <p>Visit X.com and click the save button on tweets to get started!</p>
+      </div>
+    </div>
+    </div>
+
+    <div class="tab-content" id="authors-tab">
+      <div class="controls">
+        <div class="search-box">
+          <input type="text" id="authorSearchInput" placeholder="Search authors...">
+        </div>
+        <div class="author-actions">
+          <button id="exportAuthorsBtn" class="btn btn-secondary">Export Authors</button>
+          <label class="btn btn-secondary import-btn">
+            Import Authors
+            <input type="file" id="importAuthorsFile" accept=".json" hidden>
+          </label>
+        </div>
+      </div>
+
+      <div class="stats-bar">
+        <span id="authorTotalCount">0 authors</span>
+        <span id="authorFilteredCount"></span>
+      </div>
+
+      <div id="authorList" class="author-list">
+        <div class="empty-state">
+          <p>No author tags yet.</p>
+          <p>Save tweets to automatically track authors, or add tags in the save modal.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Edit Author Modal -->
+    <div class="modal-overlay" id="editAuthorModal">
+      <div class="edit-author-modal">
+        <div class="modal-header">
+          <h3>Edit Author</h3>
+          <button class="modal-close" id="closeEditModal">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="author-info-header">
+            <span class="author-handle" id="editAuthorHandle">@username</span>
+            <span class="author-tweet-count" id="editAuthorTweetCount">0 tweets saved</span>
+          </div>
+          <div class="form-group">
+            <label for="editAuthorTags">Tags (comma-separated)</label>
+            <input type="text" id="editAuthorTags" placeholder="e.g., biotech, small caps, options">
+          </div>
+          <div class="form-group">
+            <label for="editAuthorNotes">Notes</label>
+            <textarea id="editAuthorNotes" placeholder="Notes about this author..."></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-danger" id="deleteAuthorBtn">Delete</button>
+          <div class="modal-footer-right">
+            <button class="btn btn-secondary" id="cancelEditBtn">Cancel</button>
+            <button class="btn btn-primary" id="saveAuthorBtn">Save</button>
+          </div>
+        </div>
       </div>
     </div>
   </div>
